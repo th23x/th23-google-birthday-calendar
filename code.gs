@@ -171,7 +171,12 @@ function update_birthdays() {
     // simplify data by collecting only resourceName (from tag), event id, title, date (in same structure as birthday date above) and description
     events.forEach(event => {
       const event_date = event.getStartTime();
-      birthday_events[event.getTag("th23_birthday")] = { id: event.getId(), title: event.getTitle(), date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() }, description: event.getDescription() };
+      birthday_events[event.getTag("th23_birthday")] = {
+        id: event.getId(),
+        title: event.getTitle(),
+        date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() },
+        description: event.getDescription()
+      };
     });
 
     if(debug) { console.log(events.length + " birthday series found in calendar"); console.timeEnd("Getting birthdays"); }
@@ -247,7 +252,12 @@ function update_birthdays() {
         const contact = contacts_birthdays[people_id];
 
         // create birthday event series, add tag and reminders
-        const new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
+        const new_series = cal_birthday.createAllDayEventSeries(
+          get_birthday_title(contact.name),
+          get_birthday_start(contact.birthday),
+          yearly,
+          { description: get_birthday_description(contact.birthday, timezone)
+        });
         new_series.setTag("th23_birthday", people_id);
         if(false !== birthday_reminder_minutes) {
           new_series.addPopupReminder(Number(birthday_reminder_minutes));
@@ -269,7 +279,14 @@ function update_birthdays() {
     var now = new Date();
     var last_day = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     if(last_day.getDate() == now.getDate()) {
-      GmailApp.sendEmail(Session.getActiveUser().getEmail(), "Update: Google Script - Birthday Calendar" , "Hello," + "\n\n" + "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n" + "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar.");
+      GmailApp.sendEmail(
+        Session.getActiveUser().getEmail(),
+        "Update: Google Script - Birthday Calendar",
+        "Hello," + "\n\n"
+        + "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n"
+        + "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and "
+        + events.length + " birthday series in your calendar."
+      );
     }
 
   } catch (error) {
@@ -278,7 +295,17 @@ function update_birthdays() {
     }
     else {
       // for unattended regular runs send mail upon any errors
-      GmailApp.sendEmail(Session.getActiveUser().getEmail(), "Error: Google Script - Birthday Calendar" , "Unfortunately an error happened upon snycing your contacts' birthdays with your calendar:" + "\n\n" + error.message + (("Exceeded maximum execution time - will resume on next run" === error.message) ? "\n\n" + "The script didn't manage to work through all birthdays this time, due to Googles time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : ""));
+      GmailApp.sendEmail(
+        Session.getActiveUser().getEmail(),
+        "Error: Google Script - Birthday Calendar",
+        "Hello," + "\n\n"
+        + "Unfortunately, an error happened upon syncing your contacts' birthdays with your calendar:" + "\n\n"
+        + error.message
+        + (("Exceeded maximum execution time - will resume on next run" === error.message)
+          ? "\n\n" + "The script didn't manage to work through all birthdays this time, due to Google's time limit.\n"
+            + "But no worries, it will continue its job where it was stopped with the next run later today."
+          : "")
+      );
     }
   }
 
@@ -287,7 +314,9 @@ function update_birthdays() {
 // build birthday event title
 function get_birthday_title(contact_name) {
   // must contain "%s" otherwise only shows contact (display) name as title
-  return (birthday_title.includes("%s")) ? birthday_title.replace("%s", contact_name) : contact_name;
+  return (birthday_title.includes("%s"))
+    ? birthday_title.replace("%s", contact_name)
+    : contact_name;
 }
 
 // build birthday event start
@@ -298,5 +327,10 @@ function get_birthday_start(contact_birthday) {
 
 // build birthday event description
 function get_birthday_description(contact_birthday, timezone) {
-  return (undefined !== contact_birthday["year"] && contact_birthday["year"] > Number(birthday_description_ignore_before)) ? Utilities.formatDate(new Date(contact_birthday["year"], (contact_birthday["month"] - 1), contact_birthday["day"]), timezone, birthday_description_format) : "";
+  return (undefined !== contact_birthday["year"] && contact_birthday["year"] > Number(birthday_description_ignore_before))
+    ? Utilities.formatDate(
+        new Date(contact_birthday["year"], (contact_birthday["month"] - 1), contact_birthday["day"]),
+        timezone,
+        birthday_description_format)
+    : "";
 }
