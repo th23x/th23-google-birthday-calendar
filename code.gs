@@ -247,7 +247,7 @@ function update_birthdays() {
         const contact = contacts_birthdays[people_id];
 
         // create birthday event series, add tag and reminders
-        const new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday) });
+        const new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
         new_series.setTag("th23_birthday", people_id);
         if(false !== birthday_reminder_minutes) {
           new_series.addPopupReminder(Number(birthday_reminder_minutes));
