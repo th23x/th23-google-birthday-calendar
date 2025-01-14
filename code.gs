@@ -30,7 +30,7 @@
 *    3) Once done, hit the "Run" button to try it - and grant required permissions
 *    4) A popup will indicate "Authorization required: This project requires your permission to access your data."
 *    5) Click "Review Permissions" and select your Google account, that contains your contacts and calendar to sync
-*    6) You will get the warning, that "Google hasn’t verified this app", but you can review the source code, so you can review
+*    6) You will get the warning, that "Google hasn’t verified this app", but you can review the source code, so you can review 
 *       to be safe that there are no "funny" things included!
 *    7) Click "Advanced" at the bottom left to continue and click "Go to Birthday Calendar (unsafe)"
 *    8) Sign in by selecting your Goolge account (again) and clicking "Continue" to allow required permissions:
@@ -51,8 +51,8 @@
 *       f) Failure notification - leave at default
 *    4) Scroll down and hit "Save"
 *
-*  note: Google defines a hard limit of max 6min execution time for a script - dealing with the limit this script stops execution
-*        after 5:30min and continues its job on the next run ie on following day where it stopped before - you will get a notification
+*  note: Google defines a hard limit of max 6min execution time for a script - dealing with the limit this script stops execution 
+*        after 5:30min and continues its job on the next run ie on following day where it stopped before - you will get a notification 
 *        via mail in case this happens
 *  note: once a month you get a "sign of life" via mail from this script - just so you know everything is working in the background as planned
 */
@@ -151,7 +151,7 @@ function update_birthdays() {
     if(debug) { console.log(Object.keys(contacts_birthdays).length + " contacts with birthdays found"); console.timeEnd("Getting contacts"); }
 
     // get all events from birthday calendar within last one year with th23_birthday tag (= associated people_id)
-    // { "[people/]xxx": { id: xxx, title: xxx, date: { year: xxx, month: xxx, day: xxx } } }
+    // { "[people/]xxx": { id: xxx, title: xxx, date: { year: xxx, month: xxx, day: xxx }, description: xxx } }
     let birthday_events = {};
 
     if(debug) { console.time("Getting birthdays"); }
@@ -269,7 +269,13 @@ function update_birthdays() {
     var now = new Date();
     var last_day = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     if(last_day.getDate() == now.getDate()) {
-      GmailApp.sendEmail(Session.getActiveUser().getEmail(), "Update: Google Script - Birthday Calendar" , "Hello," + "\n\n" + "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n" + "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar.");
+      GmailApp.sendEmail(
+        Session.getActiveUser().getEmail(), 
+        "Update: Google Script - Birthday Calendar" , 
+        "Hello," + "\n\n" + 
+        "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n" + 
+        "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar."
+      );
     }
 
   } catch (error) {
@@ -278,7 +284,13 @@ function update_birthdays() {
     }
     else {
       // for unattended regular runs send mail upon any errors
-      GmailApp.sendEmail(Session.getActiveUser().getEmail(), "Error: Google Script - Birthday Calendar" , "Unfortunately an error happened upon snycing your contacts' birthdays with your calendar:" + "\n\n" + error.message + (("Exceeded maximum execution time - will resume on next run" === error.message) ? "\n\n" + "The script didn't manage to work through all birthdays this time, due to Googles time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : ""));
+      GmailApp.sendEmail(
+        Session.getActiveUser().getEmail(), 
+        "Error: Google Script - Birthday Calendar" , 
+        "Unfortunately, an error happened upon syncing your contacts' birthdays with your calendar:" + "\n\n" + 
+        error.message + 
+        (("Exceeded maximum execution time - will resume on next run" === error.message) ? "\n\n" + "The script didn't manage to work through all birthdays this time, due to Google's time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : "")
+      );
     }
   }
 
