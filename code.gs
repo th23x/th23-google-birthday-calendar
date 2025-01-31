@@ -140,7 +140,7 @@ function update_birthdays() {
       connections.forEach(connection => {
         const names = connection.names || [];
         const birthdays = connection.birthdays || [];
-        if(names.length > 0 && birthdays.length > 0) {
+        if(names.length > 0 && birthdays.length > 0 && birthdays[0].date !== undefined) {
           contacts_birthdays[connection.resourceName] = { name: names[0].displayName, birthday: birthdays[0].date };
         }
       });
