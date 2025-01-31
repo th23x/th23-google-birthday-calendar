@@ -70,6 +70,7 @@ const cal_id = "...@group.calendar.google.com";
 
 // title for birthday series
 // note: has to contain "%s" which is replaced by contacts (display) name
+// note: if contact birthday has year of birth specified, next occurance will have contacts age attached to event title eg "Mr X's birthday 🎁 (19)"
 const birthday_title = "%s's birthday 🎁";
 
 // description for birthday series - to view in each event the date of birth ie to know how old somebody just got
@@ -164,17 +165,18 @@ function update_birthdays() {
 
     if(debug) { console.time("Getting birthdays"); }
 
-    // beginning of day one year ago
-    const lastYear = new Date();
-    lastYear.setFullYear(lastYear.getFullYear() - 1);
-    lastYear.setHours(0, 0, 0);
+    // beginning of tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0);
 
-    // end of today
-    const today = new Date();
-    today.setHours(23, 59, 59);
+    // end of day in one year from now
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    nextYear.setHours(23, 59, 59);
 
-    // get all individual events from last one year tagged "th23_birthday" ie added by this script
-    const events = cal_birthday.getEvents(lastYear, today).filter(e => e.getTag("th23_birthday") !== undefined);
+    // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
+    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
 
     // simplify data by collecting only resourceName (from tag), event id, title, date (in same structure as birthday date above) and description
     events.forEach(event => {
@@ -205,7 +207,8 @@ function update_birthdays() {
 
         // contact (display) name (and thus event title) changed -> update series title
         const birthday_title = get_birthday_title(contact.name);
-        if(birthday.title !== birthday_title) {
+        const birthday_title_age = get_birthday_title_age(birthday_title, birthday.date["year"], contact.birthday["year"]);
+        if(birthday.title !== birthday_title && birthday.title !== birthday_title_age) {
           if(debug) { console.time("Modifying birthday series"); }
           birthday_series = cal_birthday.getEventSeriesById(birthday.id);
           birthday_series.setTitle(birthday_title);
@@ -273,6 +276,32 @@ function update_birthdays() {
 
     });
 
+    // loop through individual events for one year ahead starting from tomorrow (once more, as now they are all there and up to date)
+    // note: separate loop, as getEventById function only returns the series not the individual occurance (other then getEvents with limit to timeframe)
+    const next_birthdays = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
+    next_birthdays.forEach(event => {
+
+      const people_id = event.getTag("th23_birthday");
+      const contact = contacts_birthdays[people_id];
+
+      const birthday_title = get_birthday_title(contact.name);
+      const birthday_title_age = get_birthday_title_age(birthday_title, event.getStartTime().getFullYear(), contact.birthday["year"]);
+
+      const event_title = event.getTitle();
+
+      if(birthday_title_age !== event_title) {
+        if(debug) { console.time("Modifying next birthday event"); }
+        event.setTitle(birthday_title_age);
+        if(debug) { console.log("Changed next birthday event title from '" + event_title + "' to '" + birthday_title_age + "'"); console.timeEnd("Modifying next birthday event"); }
+      }
+
+      // check own timer against own limit
+      if(new Date().getTime() - start > exec_limit) {
+        throw new Error("Exceeded maximum execution time - will resume on next run");
+      }
+
+    });
+
     if(debug) { console.timeEnd("Total execution"); }
 
     // send a sign of life once a month via mail - after run on last day of month so users see it on the first morning of each new month
@@ -310,6 +339,11 @@ function update_birthdays() {
 function get_birthday_title(contact_name) {
   // must contain "%s" otherwise only shows contact (display) name as title
   return (birthday_title.includes("%s")) ? birthday_title.replace("%s", contact_name) : contact_name;
+}
+
+// extend birthday event title with age at event date
+function get_birthday_title_age(birthday_title, event_year, birth_year) {
+  return (undefined !== birth_year && birth_year > Number(birthday_description_ignore_before)) ? birthday_title + " (" + (event_year - birth_year) + ")" : birthday_title;
 }
 
 // build birthday event start
