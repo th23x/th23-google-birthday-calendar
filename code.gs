@@ -264,12 +264,13 @@ function update_birthdays() {
 
         if(debug) { console.log("Added birthday series for '" + contact.name + "'"); console.timeEnd("Adding birthday series"); }
 
-        // check own timer against own limit
-        if(new Date().getTime() - start > exec_limit) {
-          throw new Error("Exceeded maximum execution time - will resume on next run");
-        }
-
       }
+
+      // check own timer against own limit
+      if(new Date().getTime() - start > exec_limit) {
+        throw new Error("Exceeded maximum execution time - will resume on next run");
+      }
+
     });
 
     if(debug) { console.timeEnd("Total execution"); }
