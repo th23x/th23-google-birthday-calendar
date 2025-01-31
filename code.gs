@@ -81,6 +81,11 @@ const birthday_description_format = "* dd MMM yyyy";
 // note: set to integer "0" to always add date of birth into event description if year is given ie not empty
 const birthday_description_ignore_before = 1901;
 
+// option to show birthdays as "busy" or "available" in the calendar
+// note: default for all-day events is "busy", set to "available" to show as free
+// note: if birthdays are stored in separate calendar (recommended) this will NOT affect availability visible by others (which is based on main calendar)
+const birthday_show_as = "busy";
+
 // reminder for birthdays series - triggering notifications
 // note: expects integer defining minutes before midnight - or set to boolean "false" for no reminders
 const birthday_reminder_minutes = 15;
@@ -99,6 +104,9 @@ const yearly = cal_service.newRecurrence().addYearlyRule();
 
 // get birthday calendar and implicitly check ownership
 const cal_birthday = cal_service.getOwnedCalendarById(cal_id);
+
+// set birthday status as busy (opaque) / free (transparent) by getting respective code from CalendarApp
+const birthday_status = ("available" == birthday_show_as) ? cal_service.EventTransparency.TRANSPARENT : cal_service.EventTransparency.OPAQUE;
 
 // own execution time limit in milliseconds - 330000ms = 1000ms * 60sec * 5.5min (vs hard Google limit after 6min)
 const exec_limit = 330000;
@@ -249,6 +257,7 @@ function update_birthdays() {
         // create birthday event series, add tag and reminders
         const new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
         new_series.setTag("th23_birthday", people_id);
+        new_series.setTransparency(birthday_status);
         if(false !== birthday_reminder_minutes) {
           new_series.addPopupReminder(Number(birthday_reminder_minutes));
         }
