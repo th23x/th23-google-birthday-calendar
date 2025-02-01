@@ -178,10 +178,10 @@ function update_birthdays() {
     // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
     const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
 
-    // simplify data by collecting only resourceName (from tag), event id, title, date (in same structure as birthday date above) and description
+    // simplify data, collect only resourceName (from tag), event id, title, date (in same structure as birthday date above), description and transparency
     events.forEach(event => {
       const event_date = event.getStartTime();
-      birthday_events[event.getTag("th23_birthday")] = { id: event.getId(), title: event.getTitle(), date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() }, description: event.getDescription() };
+      birthday_events[event.getTag("th23_birthday")] = { id: event.getId(), title: event.getTitle(), date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() }, description: event.getDescription(), status: event.getTransparency() };
     });
 
     if(debug) { console.log(events.length + " birthday series found in calendar"); console.timeEnd("Getting birthdays"); }
@@ -236,6 +236,16 @@ function update_birthdays() {
             birthday_series.setDescription(birthday_description);
             if(debug) { console.log("Changed birthday series description from '" + birthday.description + "' to '" + birthday_description + "'"); console.timeEnd("Modifying birthday series"); }
           }
+        }
+
+        // setting to show birthdays as "busy" / "available" changed
+        if(birthday.status !== birthday_status) {
+          if(debug) { console.time("Modifying birthday series"); }
+          if(undefined == birthday_series) {
+            birthday_series = cal_birthday.getEventSeriesById(birthday.id);
+          }
+          birthday_series.setTransparency(birthday_status);
+          if(debug) { console.log("Changed birthday series transparency from '" + birthday.status + "' to '" + birthday_status + "'"); console.timeEnd("Modifying birthday series"); }
         }
 
       }
