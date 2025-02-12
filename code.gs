@@ -89,6 +89,7 @@ const birthday_show_as = "busy";
 
 // reminder for birthdays series - triggering notifications
 // note: expects integer defining minutes before midnight - or set to boolean "false" for no reminders
+// note: must be set to a value in the range from min 5 minutes to max 40320 minutes (= 4 weeks) as limits set by Google - see https://developers.google.com/apps-script/reference/calendar/calendar-event#addPopupReminder(Integer)
 const birthday_reminder_minutes = 15;
 
 // debug mode will log details upon execution into console
