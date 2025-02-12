@@ -13,7 +13,7 @@
 
 // === SETUP (detailed step-by-step) ===
 
-/*
+/* 
 *  A) Code and Resources
 *    1) Open https://script.google.com in your browser
 *    2) Create "New project" and change its title to "Birthday Calendar"
@@ -118,6 +118,7 @@ const exec_limit = 330000;
 // simple short form for months - only used for log/debug
 const month_short = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+// main script for regular execution to sync birthdays
 function update_birthdays() {
 
   try {
@@ -137,7 +138,7 @@ function update_birthdays() {
     // get all contacts with (current) birthday
     // { "[people/]xxx": { name: xxx, birthday: { [year: xxx,] month: xxx, day: xxx } } }
     let contacts_birthdays = {};
-
+    
     if(debug) { console.time("Getting contacts"); }
 
     // by default People api returns results in pages
@@ -181,13 +182,43 @@ function update_birthdays() {
     // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
     const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
 
-    // simplify data, collect only resourceName (from tag), event id, title, date (in same structure as birthday date above), description and transparency
+    // collect duplicates ie multiple birthday events per person within one year
+    // note: this should not happen, but calendar technically allows multiple recurrences and upon error these can happen and would go "unnoticed" by script
+    // { "event_id": "[people/]xxx" }
+    let duplicates = {};
+
+    // simplify: collect only resourceName (tag), event id, title, date (in same structure as birthday date above), description, transparency and feb29
     events.forEach(event => {
+
+      const people_id = event.getTag("th23_birthday");
+      const event_id = event.getId();
+      const event_title = event.getTitle();
       const event_date = event.getStartTime();
-      birthday_events[event.getTag("th23_birthday")] = { id: event.getId(), title: event.getTitle(), date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() }, description: event.getDescription(), status: event.getTransparency() };
+      
+      // identify duplicates and add both occurences to duplicates - note: one occurence remains in birthday_events until removed later
+      if(undefined !== birthday_events[people_id]) {
+        duplicates[birthday_events[people_id]["id"]] = { people_id: people_id, event_title: birthday_events[people_id]["title"] };
+        duplicates[event_id] = { people_id: people_id, event_title: event_title };
+      }
+      
+      birthday_events[people_id] = { id: event_id, title: event_title, date: { day: event_date.getDate(), month: event_date.getMonth() + 1, year: event_date.getFullYear() }, description: event.getDescription(), status: event.getTransparency(), feb29: event.getTag("th23_birthday_feb29") };
+
     });
 
-    if(debug) { console.log(events.length + " birthday series found in calendar"); console.timeEnd("Getting birthdays"); }
+    // remove duplicates (ensure non of the series remains, as there is no way to determine the correct one - missing correct one will be re-added later)
+    Object.keys(duplicates).forEach(function(event_id) {
+
+      const duplicate = duplicates[event_id];    
+
+      if(debug) { console.time("Removing duplicate"); }
+      cal_birthday.getEventSeriesById(event_id).deleteEventSeries();
+      // remove remaining occurence from birthday_events
+      delete birthday_events[duplicate["people_id"]];
+      if(debug) { console.log("Removed duplicate '" + duplicate["event_title"] + "' from calendar"); console.timeEnd("Removing duplicate"); }
+
+    });
+
+    if(debug) { console.log(Object.keys(birthday_events).length + " birthday series found in calendar"); console.timeEnd("Getting birthdays"); }
 
     // loop through all birthday events - remove or update series on calendar, if
     //    a) contact does not exist or not have a birthday specified anymore
@@ -201,46 +232,61 @@ function update_birthdays() {
       if(undefined === contacts_birthdays[people_id]) {
         if(debug) { console.time("Removing birthday series"); }
         cal_birthday.getEventSeriesById(birthday.id).deleteEventSeries();
-        if(debug) { console.log("Removed birthday series '" + birthday.title + "' from calendar"); console.timeEnd("Removing birthday series"); }
+        delete birthday_events[people_id];
+        if(debug) { console.log("Removed '" + birthday.title + "' from calendar"); console.timeEnd("Removing birthday series"); }
+        return;
       }
-      else {
 
-        const contact = contacts_birthdays[people_id];
-        let birthday_series = undefined;
+      const contact = contacts_birthdays[people_id];
+      let birthday_series = undefined;
 
-        // contact (display) name (and thus event title) changed -> update series title
-        const birthday_title = get_birthday_title(contact.name);
-        const birthday_title_age = get_birthday_title_age(birthday_title, birthday.date["year"], contact.birthday["year"]);
-        if(birthday.title !== birthday_title && birthday.title !== birthday_title_age) {
-          if(debug) { console.time("Modifying birthday series"); }
+      // simplify month-day comparisson
+      const contact_birthday = contact.birthday["month"] + "-" + contact.birthday["day"];
+      const birthday_date = birthday.date["month"] + "-" + birthday.date["day"];
+
+      // (moved to Feb 29 or never set correct rrule ie missing tag) or (moved from Feb 29, identified via tag or event date)
+      // note: requires deleting series from calendar and from existing birthdays_events array, as setRecurrence function does NOT handle Feb 29 rule - see (re-)adding series again further below
+      if((("2-29" == contact_birthday || "2-29" == birthday_date) && !birthday.feb29) || ("2-29" != contact_birthday && (birthday.feb29 || "2-29" == birthday_date))) {
+        if(debug) { console.time("Deleting birthday series"); }
+        if(undefined == birthday_series) {
           birthday_series = cal_birthday.getEventSeriesById(birthday.id);
-          birthday_series.setTitle(birthday_title);
-          if(debug) { console.log("Changed birthday series title from '" + birthday.title + "' to '" + birthday_title + "'"); console.timeEnd("Modifying birthday series"); }
         }
+        birthday_series.deleteEventSeries();
+        delete birthday_events[people_id];
+        if(debug) { console.log("Deleted birthday series for '" + contact.name + "' as touched 'Feb 29' which requires special handling - it will be re-added later..."); console.timeEnd("Deleting birthday series"); }
+        return;
+      }
+      // other "normal" date changes 
+      else if(birthday_date != contact_birthday && !birthday.feb29) {
+        if(debug) { console.time("Modifying birthday series"); }
+        if(undefined == birthday_series) {
+          birthday_series = cal_birthday.getEventSeriesById(birthday.id);
+        }
+        birthday_series.setRecurrence(yearly, get_birthday_start(contact.birthday));
+        if(debug) { console.log("Changed date of birthday series for '" + contact.name + "' from '" + month_short[birthday.date["month"] - 1] + " " + birthday.date["day"] + "' to '" + month_short[contact.birthday["month"] - 1] + " " + contact.birthday["day"] + "'"); console.timeEnd("Modifying birthday series"); }
+      }
 
-        // month or day of birthday changed -> change series recurrence (day/month) and update description
-        if(birthday.date["month"] !== contact.birthday["month"] || birthday.date["day"] !== contact.birthday["day"]) {
-          if(debug) { console.time("Modifying birthday series"); }
-          if(undefined == birthday_series) {
-            birthday_series = cal_birthday.getEventSeriesById(birthday.id);
-          }
-          birthday_series.setRecurrence(yearly, get_birthday_start(contact.birthday));
-          birthday_series.setDescription(get_birthday_description(contact.birthday, timezone));
-          if(debug) { console.log("Changed birthday series date from '" + month_short[birthday.date["month"] - 1] + " " + birthday.date["day"] + "' to '" + month_short[contact.date["month"] - 1] + " " + contact.date["day"] + "'"); console.timeEnd("Modifying birthday series"); }
+      // contact (display) name (and thus event title) changed -> update series title
+      const birthday_title = get_birthday_title(contact.name);
+      const birthday_title_age = get_birthday_title_age(birthday_title, birthday.date["year"], contact.birthday["year"]);
+      if(birthday.title !== birthday_title && birthday.title !== birthday_title_age) {
+        if(debug) { console.time("Modifying birthday series"); }
+        if(undefined == birthday_series) {
+          birthday_series = cal_birthday.getEventSeriesById(birthday.id);
         }
-        // (only) year of birthday (and thus event description) changed -> update series description
-        else {
-          const birthday_description = get_birthday_description(contact.birthday, timezone);
-          if(birthday.description !== birthday_description) {
-            if(debug) { console.time("Modifying birthday series"); }
-            if(undefined == birthday_series) {
-              birthday_series = cal_birthday.getEventSeriesById(birthday.id);
-            }
-            birthday_series.setDescription(birthday_description);
-            if(debug) { console.log("Changed birthday series description from '" + birthday.description + "' to '" + birthday_description + "'"); console.timeEnd("Modifying birthday series"); }
-          }
-        }
+        birthday_series.setTitle(birthday_title);
+        if(debug) { console.log("Changed title from '" + birthday.title + "' to '" + birthday_title + "'"); console.timeEnd("Modifying birthday series"); }
+      }
 
+      // event description changed -> update series description
+      const birthday_description = get_birthday_description(contact.birthday, timezone);
+      if(birthday.description !== birthday_description) {
+        if(debug) { console.time("Modifying birthday series"); }
+        if(undefined == birthday_series) {
+          birthday_series = cal_birthday.getEventSeriesById(birthday.id);
+        }
+        birthday_series.setDescription(birthday_description);
+        if(debug) { console.log("Changed description of '" + birthday_title + "' from '" + birthday.description + "' to '" + birthday_description + "'"); console.timeEnd("Modifying birthday series"); }
       }
 
       // check own timer against own limit
@@ -261,7 +307,25 @@ function update_birthdays() {
         const contact = contacts_birthdays[people_id];
 
         // create birthday event series, add tag and reminders
-        const new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
+        let new_series = undefined;
+        // special handling for birthdays on Feb 29 - add recurrence on the last day of Feb each year
+        // note: special RRULE can not be generated for usage by createAllDayEventSeries function -> workaround via Calendar API
+        if(2 == contact.birthday["month"] && 29 == contact.birthday["day"]) {
+          const birthday_start_year = get_birthday_start(contact.birthday).getFullYear();
+          const feb29_insert = Calendar.Events.insert({
+            start: { date: birthday_start_year + "-02-29" },
+            end: { date: birthday_start_year + "-03-01" },
+            recurrence: ["RRULE:FREQ=YEARLY;INTERVAL=1;BYMONTH=2;BYMONTHDAY=-1"],
+            summary: get_birthday_title(contact.name),
+            description: get_birthday_description(contact.birthday, timezone),
+          }, cal_id);
+          new_series = cal_birthday.getEventSeriesById(feb29_insert.iCalUID);
+          new_series.setTag("th23_birthday_feb29", "feb29");
+        }
+        // all other dates follow a simple yearly recurrence
+        else {
+          new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
+        }
         new_series.setTag("th23_birthday", people_id);
         new_series.setTransparency(birthday_status);
         if(false !== birthday_reminder_minutes) {
@@ -280,7 +344,7 @@ function update_birthdays() {
     });
 
     // loop through individual events for one year ahead starting from tomorrow (once more, as now they are all there and up to date)
-    // note: separate loop, as getEventById function only returns the series not the individual occurance (other then getEvents with limit to timeframe)
+    // note: separate loop, as getEventById function only returns the series not the individual occurance (other then getEvents with limit to timeframe) 
     const next_birthdays = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
     next_birthdays.forEach(event => {
 
@@ -295,7 +359,7 @@ function update_birthdays() {
       if(birthday_title_age !== event_title) {
         if(debug) { console.time("Modifying next birthday event"); }
         event.setTitle(birthday_title_age);
-        if(debug) { console.log("Changed next birthday event title from '" + event_title + "' to '" + birthday_title_age + "'"); console.timeEnd("Modifying next birthday event"); }
+        if(debug) { console.log("Changed title of next birthday event from '" + event_title + "' to '" + birthday_title_age + "'"); console.timeEnd("Modifying next birthday event"); }
       }
 
       // check own timer against own limit
@@ -304,7 +368,7 @@ function update_birthdays() {
       }
 
     });
-
+  
     if(debug) { console.timeEnd("Total execution"); }
 
     // send a sign of life once a month via mail - after run on last day of month so users see it on the first morning of each new month
