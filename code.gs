@@ -85,11 +85,13 @@ const birthday_description_ignore_before = 1901;
 // option to show birthdays as "busy" or "available" in the calendar
 // note: default for all-day events is "busy", set to "available" to show as free
 // note: if birthdays are stored in separate calendar (recommended) this will NOT affect availability visible by others (which is based on main calendar)
+// important: changes only apply to future added or changed birthday series, to apply changes to already existing birthday series in calendar, execute delete_birthdays() function and let the script re-add all birthday series with the next run
 const birthday_show_as = "busy";
 
 // reminder for birthdays series - triggering notifications
 // note: expects integer defining minutes before midnight - or set to boolean "false" for no reminders
 // note: must be set to a value in the range from min 5 minutes to max 40320 minutes (= 4 weeks) as limits set by Google - see https://developers.google.com/apps-script/reference/calendar/calendar-event#addPopupReminder(Integer)
+// important: changes only apply to future added or changed birthday series, to apply changes to already existing birthday series in calendar, execute delete_birthdays() function and let the script re-add all birthday series with the next run
 const birthday_reminder_minutes = 15;
 
 // debug mode will log details upon execution into console
@@ -239,16 +241,6 @@ function update_birthdays() {
           }
         }
 
-        // setting to show birthdays as "busy" / "available" changed
-        if(birthday.status !== birthday_status) {
-          if(debug) { console.time("Modifying birthday series"); }
-          if(undefined == birthday_series) {
-            birthday_series = cal_birthday.getEventSeriesById(birthday.id);
-          }
-          birthday_series.setTransparency(birthday_status);
-          if(debug) { console.log("Changed birthday series transparency from '" + birthday.status + "' to '" + birthday_status + "'"); console.timeEnd("Modifying birthday series"); }
-        }
-
       }
 
       // check own timer against own limit
@@ -366,4 +358,54 @@ function get_birthday_start(contact_birthday) {
 // build birthday event description
 function get_birthday_description(contact_birthday, timezone) {
   return (undefined !== contact_birthday["year"] && contact_birthday["year"] > Number(birthday_description_ignore_before)) ? Utilities.formatDate(new Date(contact_birthday["year"], (contact_birthday["month"] - 1), contact_birthday["day"]), timezone, birthday_description_format) : "";
+}
+
+// delete all birthday series added by this script
+function delete_birthdays() {
+
+  try {
+
+    if(!cal_birthday) {
+      throw new Error("No owned calendar accessible");
+    }
+
+    // start own timer (milliseconds)
+    const start = new Date().getTime();
+
+    if(debug) { console.time("Deleting birthdays"); }
+
+    // beginning of tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0);
+
+    // end of day in one year from now
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    nextYear.setHours(23, 59, 59);
+
+    // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
+    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
+
+    // loop through events and delete birthday series
+    events.forEach(event => {
+
+      const event_id = event.getId();
+      const event_title = event.getTitle();
+
+      if(debug) { console.time("Deleting birthday series"); }
+      cal_birthday.getEventSeriesById(event_id).deleteEventSeries();
+      if(debug) { console.log("Deleted birthday series '" + event_title); console.timeEnd("Deleting birthday series"); }
+
+      // check own timer against own limit
+      if(new Date().getTime() - start > exec_limit) {
+        throw new Error("Exceeded maximum execution time - please restart 'delete_birthdays' again to complete the job");
+      }
+
+    });
+
+  } catch (error) {
+    console.error(error.message);
+  }
+
 }
