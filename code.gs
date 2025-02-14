@@ -94,6 +94,12 @@ const birthday_show_as = "busy";
 // important: changes only apply to future added or changed birthday series, to apply changes to already existing birthday series in calendar, execute delete_birthdays() function and let the script re-add all birthday series with the next run
 const birthday_reminder_minutes = 15;
 
+// option to set specific start time for birthdays - allows to trigger notifications also some time mid-day, see note about Google limitation above
+// note: default is "false" which will create all-day events starting at midnight
+// note: must be set to a value in the range from min 0 to max 23 hours, the duration of the event will be 1 hour
+// important: changes only apply to future added or changed birthday series, to apply changes to already existing birthday series in calendar, execute delete_birthdays() function and let the script re-add all birthday series with the next run
+const birthday_start_time = false;
+
 // debug mode will log details upon execution into console
 // note: if disabled ie set to boolean "false" eg for unattended regular runs, script will send an email for errors occuring
 const debug = false;
@@ -111,6 +117,9 @@ const cal_birthday = cal_service.getOwnedCalendarById(cal_id);
 
 // set birthday status as busy (opaque) / free (transparent) by getting respective code from CalendarApp
 const birthday_status = ("available" == birthday_show_as) ? cal_service.EventTransparency.TRANSPARENT : cal_service.EventTransparency.OPAQUE;
+
+// ensure birthday start hour is a valid value or false as fallback for full-day
+const birthday_start_hour = (0 <= birthday_start_time && birthday_start_time <= 23) ? birthday_start_time : false;
 
 // own execution time limit in milliseconds - 330000ms = 1000ms * 60sec * 5.5min (vs hard Google limit after 6min)
 const exec_limit = 330000;
@@ -262,7 +271,15 @@ function update_birthdays() {
         if(undefined == birthday_series) {
           birthday_series = cal_birthday.getEventSeriesById(birthday.id);
         }
-        birthday_series.setRecurrence(yearly, get_birthday_start(contact.birthday));
+        // all-day event
+        if(false === birthday_start_hour) {
+          birthday_series.setRecurrence(yearly, get_birthday_date(contact.birthday));
+        }
+        // one-hour event
+        else {
+          const birthday_hours = get_birthday_hours(contact.birthday);
+          birthday_series.setRecurrence(yearly, birthday_hours.start, birthday_hours.end);
+        }
         if(debug) { console.log("Changed date of birthday series for '" + contact.name + "' from '" + month_short[birthday.date["month"] - 1] + " " + birthday.date["day"] + "' to '" + month_short[contact.birthday["month"] - 1] + " " + contact.birthday["day"] + "'"); console.timeEnd("Modifying birthday series"); }
       }
 
@@ -311,10 +328,19 @@ function update_birthdays() {
         // special handling for birthdays on Feb 29 - add recurrence on the last day of Feb each year
         // note: special RRULE can not be generated for usage by createAllDayEventSeries function -> workaround via Calendar API
         if(2 == contact.birthday["month"] && 29 == contact.birthday["day"]) {
-          const birthday_start_year = get_birthday_start(contact.birthday).getFullYear();
+          const birthday_start_year = get_birthday_date(contact.birthday).getFullYear();
+          // all-day event
+          let event_start = { date: birthday_start_year + "-02-29" };
+          let event_end = { date: birthday_start_year + "-03-01" };
+          // one-hour event
+          if(false !== birthday_start_hour) {
+            const birthday_hours = get_birthday_hours(contact.birthday);
+            event_start = { dateTime: birthday_hours.start.toISOString(), timeZone: 'UTC' };
+            event_end = { dateTime: birthday_hours.end.toISOString(), timeZone: 'UTC' };
+          }
           const feb29_insert = Calendar.Events.insert({
-            start: { date: birthday_start_year + "-02-29" },
-            end: { date: birthday_start_year + "-03-01" },
+            start: event_start,
+            end: event_end,
             recurrence: ["RRULE:FREQ=YEARLY;INTERVAL=1;BYMONTH=2;BYMONTHDAY=-1"],
             summary: get_birthday_title(contact.name),
             description: get_birthday_description(contact.birthday, timezone),
@@ -324,7 +350,15 @@ function update_birthdays() {
         }
         // all other dates follow a simple yearly recurrence
         else {
-          new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_start(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
+          // all-day event
+          if(false === birthday_start_hour) {
+            new_series = cal_birthday.createAllDayEventSeries(get_birthday_title(contact.name), get_birthday_date(contact.birthday), yearly, { description: get_birthday_description(contact.birthday, timezone) });
+          }
+          // one-hour event
+          else {
+            const birthday_hours = get_birthday_hours(contact.birthday);
+            new_series = cal_birthday.createEventSeries(get_birthday_title(contact.name), birthday_hours.start, birthday_hours.end, yearly, { description: get_birthday_description(contact.birthday, timezone) });
+          }
         }
         new_series.setTag("th23_birthday", people_id);
         new_series.setTransparency(birthday_status);
@@ -413,10 +447,19 @@ function get_birthday_title_age(birthday_title, event_year, birth_year) {
   return (undefined !== birth_year && birth_year > Number(birthday_description_ignore_before)) ? birthday_title + " (" + (event_year - birth_year) + ")" : birthday_title;
 }
 
-// build birthday event start
-function get_birthday_start(contact_birthday) {
+// build birthday event date
+function get_birthday_date(contact_birthday) {
   const today = new Date();
   return new Date((today.getFullYear() - 1), (contact_birthday["month"] - 1), contact_birthday["day"]);
+}
+
+// build birthday event start and end dates
+function get_birthday_hours(contact_birthday) {
+  let birthday_start = get_birthday_date(contact_birthday);
+  birthday_start.setHours(birthday_start_hour, 0, 0);
+  let birthday_end = get_birthday_date(contact_birthday);
+  birthday_end.setHours(birthday_start_hour + 1, 0, 0);
+  return { start: birthday_start, end: birthday_end };
 }
 
 // build birthday event description
