@@ -1,6 +1,6 @@
 # 🎉 th23 Google Birthday Calendar
 
-Birthday Calendar for syncing Google Contacts and Calendar using Apps Script
+Automatic syncing of Google Contacts birthdays as event series with reminders to Google Calendar
 
 
 ## 🚀 Introduction
@@ -34,7 +34,7 @@ Due to some regulatory requirements (?) birthdays added to your Google Contacts 
 3. Once done, hit the `Run` button to try it - and grant required permissions
 4. A popup will indicate `Authorization required: This project requires your permission to access your data.`
 5. Click `Review Permissions` and select your Google account, that contains your contacts and calendar to sync
-6. You will get the warning, that `Google hasn’t verified this app`, but you can review the source code, so you can review to be safe that there are no "funny" things included!
+6. You will get the warning, that `Google hasn’t verified this app`, but you can either trust me or review the source code, to be safe that there are no "funny" things included!
 7. Click `Advanced` at the bottom left to continue and click `Go to Birthday Calendar (unsafe)`
 8. Sign in by selecting your Goolge account (again) and clicking `Continue` to allow required permissions:
    * Allow access to your mails - used for authentication and infos via mail in case of any errors
@@ -57,6 +57,7 @@ Due to some regulatory requirements (?) birthdays added to your Google Contacts 
 
 > [!IMPORTANT]
 > Google defines a hard limit of max 6min execution time for a script - dealing with the limit this script stops execution after 5:30min and continues its job on the next run ie on following day where it stopped before
+> 
 > You will get a notification via mail in case this happens
 
 > [!NOTE]
