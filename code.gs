@@ -406,15 +406,18 @@ function update_birthdays() {
     if(debug) { console.timeEnd("Total execution"); }
 
     // send a sign of life once a month via mail - after run on last day of month so users see it on the first morning of each new month
-    var now = new Date();
-    var last_day = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const now = new Date();
+    const last_day = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     if(last_day.getDate() == now.getDate()) {
       GmailApp.sendEmail(
         Session.getActiveUser().getEmail(), 
         "Update: Google Script - Birthday Calendar" , 
         "Hello," + "\n\n" + 
         "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n" + 
-        "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar."
+        "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar." + "\n\n" +
+        "---" + "\n\n" +
+        "Please check project page for updates of this script from time to time to ensure you have the latest version" + "\n" +
+        "https://github.com/th23x/th23-google-birthday-calendar"
       );
     }
 
@@ -428,8 +431,8 @@ function update_birthdays() {
         Session.getActiveUser().getEmail(), 
         "Error: Google Script - Birthday Calendar" , 
         "Unfortunately, an error happened upon syncing your contacts' birthdays with your calendar:" + "\n\n" + 
-        error.message + 
-        (("Exceeded maximum execution time - will resume on next run" === error.message) ? "\n\n" + "The script didn't manage to work through all birthdays this time, due to Google's time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : "")
+        error.message + "\n\n" + 
+        (("Exceeded maximum execution time - will resume on next run" === error.message) ? "The script didn't manage to work through all birthdays this time, due to Google's time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : "Please try again - in case the error persists, check project page for updates of this script or opening an issue"  + "\n" + "https://github.com/th23x/th23-google-birthday-calendar")
       );
     }
   }
