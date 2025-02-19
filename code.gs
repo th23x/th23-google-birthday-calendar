@@ -107,6 +107,9 @@ const debug = false;
 
 // === STOP: Do NOT edit anything below this line! ===
 
+// script version
+const version = "1.3.2";
+
 // get Google services
 const people_service = People.People;
 const cal_service = CalendarApp;
@@ -416,7 +419,7 @@ function update_birthdays() {
         "If you haven't heard from me since a month all is good and I keep your contacts' birthdays synced with your calendar once a day :-)" + "\n\n" + 
         "You currently have " + Object.keys(contacts_birthdays).length + " contacts with birthdays and " + events.length + " birthday series in your calendar." + "\n\n" +
         "---" + "\n\n" +
-        "Please check project page for updates of this script from time to time to ensure you have the latest version" + "\n" +
+        "You are currently using v" + version + " of this script - please check project page for updates from time to time to ensure you have the latest version" + "\n" +
         "https://github.com/th23x/th23-google-birthday-calendar"
       );
     }
@@ -432,7 +435,7 @@ function update_birthdays() {
         "Error: Google Script - Birthday Calendar" , 
         "Unfortunately, an error happened upon syncing your contacts' birthdays with your calendar:" + "\n\n" + 
         error.message + "\n\n" + 
-        (("Exceeded maximum execution time - will resume on next run" === error.message) ? "The script didn't manage to work through all birthdays this time, due to Google's time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : "Please try again - in case the error persists, check project page for updates of this script or opening an issue"  + "\n" + "https://github.com/th23x/th23-google-birthday-calendar")
+        (("Exceeded maximum execution time - will resume on next run" === error.message) ? "The script didn't manage to work through all birthdays this time, due to Google's time limit. But no worries, it will continue its job where it was stopped with the next run later today... " : "Please try again - in case the error persists, check project page for updates of this script or opening an issue"  + "\n" + "https://github.com/th23x/th23-google-birthday-calendar" + "\n" + "Note: You are currently using v" + version + " of this script")
       );
     }
   }
