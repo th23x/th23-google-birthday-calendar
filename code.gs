@@ -100,6 +100,14 @@ const birthday_reminder_minutes = 15;
 // important: changes only apply to future added or changed birthday series, to apply changes to already existing birthday series in calendar, execute delete_birthdays() function and let the script re-add all birthday series with the next run
 const birthday_start_time = false;
 
+// option to limit sync to contacts that belong to specific user-created labels in Google Contacts
+// note: default is boolean "false" which will include all contacts with a birthday (no filtering); an empty array "[]" is treated the same as "false"
+// note: expects an array of user-created label names exactly as they appear in Google Contacts, eg ["Family", "Friends"] - matching is case-sensitive
+// note: a contact is included if they belong to any one of the listed labels (OR logic); only user-created labels are supported, system groups like "starred" or "myContacts" are not
+// important: if a configured label name does not exist in your Google Contacts, the script will abort with an error to avoid silently syncing nothing due to a typo
+// important: if filtering is enabled, contacts that no longer match (eg because their label was removed or this config was changed) will have their existing birthday series removed from the calendar on the next run
+const include_labels = false;
+
 // debug mode will log details upon execution into console
 // note: if disabled ie set to boolean "false" eg for unattended regular runs, script will send an email for errors occuring
 const debug = false;
@@ -108,7 +116,7 @@ const debug = false;
 // === STOP: Do NOT edit anything below this line! ===
 
 // script version
-const version = "1.3.2";
+const version = "1.4.0";
 
 // get Google services
 const people_service = People.People;
@@ -123,6 +131,9 @@ const birthday_status = ("available" == birthday_show_as) ? cal_service.EventTra
 
 // ensure birthday start hour is a valid value or false as fallback for full-day
 const birthday_start_hour = (0 <= birthday_start_time && birthday_start_time <= 23) ? birthday_start_time : false;
+
+// normalize label filter - treat empty array same as false (no filtering)
+const include_labels_active = Array.isArray(include_labels) && include_labels.length > 0;
 
 // own execution time limit in milliseconds - 330000ms = 1000ms * 60sec * 5.5min (vs hard Google limit after 6min)
 const exec_limit = 330000;
@@ -147,18 +158,41 @@ function update_birthdays() {
     // determine birthday calendar timezone
     const timezone = cal_birthday.getTimeZone();
 
+    // resolve configured label names to contact group resource names
+    // note: only user-created labels are considered - system groups (eg "starred", "myContacts") are excluded
+    let allowed_group_resource_names = null;
+    if(include_labels_active) {
+      if(debug) { console.time("Resolving labels"); }
+      const groups_response = People.ContactGroups.list({ pageSize: 1000 });
+      const all_groups = groups_response.contactGroups || [];
+      const user_groups_by_name = {};
+      all_groups.forEach(group => {
+        if(group.groupType === "USER_CONTACT_GROUP") {
+          user_groups_by_name[group.name] = group.resourceName;
+        }
+      });
+      const missing_labels = include_labels.filter(label => user_groups_by_name[label] === undefined);
+      if(missing_labels.length > 0) {
+        throw new Error("Configured label(s) not found in Google Contacts: " + missing_labels.join(", "));
+      }
+      allowed_group_resource_names = include_labels.map(label => user_groups_by_name[label]);
+      if(debug) { console.log("Filtering by labels: " + include_labels.join(", ")); console.timeEnd("Resolving labels"); }
+    }
+
     // get all contacts with (current) birthday
     // { "[people/]xxx": { name: xxx, birthday: { [year: xxx,] month: xxx, day: xxx } } }
     let contacts_birthdays = {};
-    
+
     if(debug) { console.time("Getting contacts"); }
+
+    const person_fields = include_labels_active ? 'names,birthdays,memberships' : 'names,birthdays';
 
     // by default People api returns results in pages
     let page_token = null;
     do {
 
       // get names and birthdays of all contacts
-      const contacts = people_service.Connections.list("people/me", { personFields: 'names,birthdays', pageToken: page_token });
+      const contacts = people_service.Connections.list("people/me", { personFields: person_fields, pageToken: page_token });
       const connections = contacts.connections || [];
 
       // simplify data by collecting only resourceName, display name, birthday date object of contacts with a birthday saved
@@ -166,6 +200,14 @@ function update_birthdays() {
         const names = connection.names || [];
         const birthdays = connection.birthdays || [];
         if(names.length > 0 && birthdays.length > 0 && birthdays[0].date !== undefined) {
+          // when label filtering is active, skip contacts that don't belong to any of the configured labels
+          if(include_labels_active) {
+            const memberships = connection.memberships || [];
+            const in_allowed_label = memberships.some(m => m.contactGroupMembership && allowed_group_resource_names.indexOf(m.contactGroupMembership.contactGroupResourceName) !== -1);
+            if(!in_allowed_label) {
+              return;
+            }
+          }
           contacts_birthdays[connection.resourceName] = { name: names[0].displayName, birthday: birthdays[0].date };
         }
       });
