@@ -192,7 +192,7 @@ function update_birthdays() {
     nextYear.setHours(23, 59, 59);
 
     // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
-    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
+    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") != null);
 
     // collect duplicates ie multiple birthday events per person within one year
     // note: this should not happen, but calendar technically allows multiple recurrences and upon error these can happen and would go "unnoticed" by script
@@ -382,7 +382,7 @@ function update_birthdays() {
 
     // loop through individual events for one year ahead starting from tomorrow (once more, as now they are all there and up to date)
     // note: separate loop, as getEventById function only returns the series not the individual occurance (other then getEvents with limit to timeframe) 
-    const next_birthdays = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
+    const next_birthdays = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") != null);
     next_birthdays.forEach(event => {
 
       const people_id = event.getTag("th23_birthday");
@@ -498,7 +498,7 @@ function delete_birthdays() {
     nextYear.setHours(23, 59, 59);
 
     // get all individual events from tomorrow until one year ahead tagged "th23_birthday" ie added by this script
-    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") !== undefined);
+    const events = cal_birthday.getEvents(tomorrow, nextYear).filter(e => e.getTag("th23_birthday") != null);
 
     // loop through events and delete birthday series
     events.forEach(event => {
